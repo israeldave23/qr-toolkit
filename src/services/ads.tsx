@@ -7,6 +7,7 @@ import {
   RewardedAd,
   AdEventType,
   RewardedAdEventType,
+  AdsConsent,
   type RewardedAdReward,
   TestIds,
 } from 'react-native-google-mobile-ads';
@@ -19,13 +20,40 @@ const UNITS = {
   rewarded: TestIds.REWARDED,
 };
 
+// ---------------------------------------------------------------------------
+// UMP consent gate — GDPR / EEA / UK compliance.
+// The UMP form is shown (if required by the user's region) BEFORE ad SDK init.
+// For users outside regulated regions AdsConsent completes instantly without
+// showing any UI, so there is no UX impact for most users.
+// ---------------------------------------------------------------------------
+let consentPromise: Promise<void> | null = null;
+
+function ensureConsent(): Promise<void> {
+  if (!consentPromise) {
+    consentPromise = AdsConsent.gatherConsent()
+      .then((info) => {
+        if (info?.isConsentFormAvailable) {
+          console.warn('[ads] UMP consent form shown to user');
+        }
+      })
+      .catch(() => {
+        // On any consent error proceed with init — for regulated users without
+        // consent, AdMob will simply not serve ads.
+      });
+  }
+  return consentPromise;
+}
+
 let sdkReady: Promise<void> | null = null;
 
 export function adsReady(): Promise<void> {
   if (!sdkReady) {
-    sdkReady = mobileAds().initialize().then(() => undefined).catch(() => {});
+    // Gate SDK init behind consent — required for EEA/UK GDPR compliance.
+    sdkReady = ensureConsent().then(
+      () => mobileAds().initialize().then(() => undefined).catch(() => {}),
+    );
   }
-  return sdkReady as Promise<void>;
+  return sdkReady;
 }
 
 export const bannerUnitId = UNITS.banner;

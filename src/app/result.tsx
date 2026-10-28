@@ -11,6 +11,7 @@ import { toggleFavorite, isFavorite, redactSensitive } from '../services/history
 import { detectType, TYPE_LABELS } from '../utils/qr';
 import { saveQrImageToPhotos, shareQrImage, copyToClipboard } from '../services/share';
 import { useAdsEnabled, showInterstitialIfReady } from '../services/ads';
+import { runContextAction, contextActionLabel } from '../services/contextActions';
 import type { QrDetectedType } from '../models';
 
 type RouteParams = {
@@ -115,9 +116,12 @@ export default function Result() {
   };
 
   const canOpen = ['url', 'email', 'phone', 'sms', 'location'].includes(qrType);
+  const ctxLabel = contextActionLabel(qrType);
 
   const actions: { label: string; show: boolean }[] = [
-    { label: 'Open', show: canOpen },
+    // Context-sensitive primary action (Wi-Fi / vCard / Event / Location)
+    { label: ctxLabel ?? '', show: ctxLabel !== null },
+    { label: 'Open', show: canOpen && ctxLabel === null },
     { label: 'Copy', show: true },
     { label: 'Share', show: true },
     { label: 'Share Image', show: true },
@@ -126,6 +130,10 @@ export default function Result() {
   const visibleActions = actions.filter((a) => a.show);
 
   const runAction = (label: string) => {
+    if (ctxLabel && label === ctxLabel) {
+      runContextAction(qrType, content);
+      return;
+    }
     switch (label) {
       case 'Open': open(); break;
       case 'Copy': copy(); break;
