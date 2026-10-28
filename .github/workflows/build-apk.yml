@@ -1,0 +1,55 @@
+name: Build APK
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: apk-build-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test -- --ci --maxWorkers=2
+
+      - name: EAS production APK
+        id: build
+        run: |
+          BUILD_JSON=$(npx eas-cli build --json --wait --profile=production --platform=android)
+          BUILD_ID=$(echo "$BUILD_JSON" | jq -r '.builds[0].id')
+          echo "build_id=$BUILD_ID" >> "$GITHUB_OUTPUT"
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Fetch build artifact
+        run: |
+          BUILD_VIEW=$(npx eas-cli build:view "${{ steps.build.outputs.build_id }}" --json)
+          ARTIFACT_URL=$(echo "$BUILD_VIEW" | jq -r '.artifacts.url // .url // .buildUrl')
+          echo "Downloading from: $ARTIFACT_URL"
+          curl -fL -H "Authorization: Bearer $EXPO_TOKEN" "$ARTIFACT_URL" -o app-release.apk
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: qr-toolkit-production-apk
+          path: 'app-release.apk'
+          retention-days: 30
