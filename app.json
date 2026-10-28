@@ -1,0 +1,70 @@
+{
+  "expo": {
+    "name": "qr-toolkit",
+    "slug": "qr-toolkit",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "scheme": "qrtoolkit",
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Allow QR Toolkit to use camera to scan QR codes.",
+        "NSPhotoLibraryUsageDescription": "Allow QR Toolkit to access photos to scan QR codes.",
+        "NSPhotoLibraryAddUsageDescription": "Allow QR Toolkit to save QR codes to your photo library."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "CAMERA",
+        "READ_MEDIA_IMAGES",
+        "READ_EXTERNAL_STORAGE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      "expo-dev-client",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow QR Toolkit to use camera to scan QR codes."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow QR Toolkit to access photos to scan QR codes."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow QR Toolkit to save QR codes to your photo library."
+        }
+      ],
+      "expo-sharing",
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-3940286549654080~3347511713",
+          "iosAppId": "ca-app-pub-3940286549654080~1458002511",
+          "optimizeInitialization": true,
+          "optimizeAdLoading": true,
+          "userTrackingUsageDescription": "Used to show personalized ads."
+        }
+      ]
+    ]
+  }
+}
