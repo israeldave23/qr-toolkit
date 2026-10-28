@@ -1,0 +1,89 @@
+name: Android Builds
+
+on:
+  pull_request:
+    branches: [main]
+  release:
+    types: [created]
+  push:
+    tags: ['v*']
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  test-preview:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Unit tests
+        run: npm test -- --ci --maxWorkers=2
+      - name: EAS preview APK
+        id: build
+        run: |
+          BUILD_JSON=$(npx eas-cli build --json --wait --profile=preview --platform=android)
+          BUILD_ID=$(echo "$BUILD_JSON" | jq -r '.builds[0].id')
+          echo "build_id=$BUILD_ID" >> "$GITHUB_OUTPUT"
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      - name: Fetch build artifact
+        run: |
+          BUILD_VIEW=$(npx eas-cli build:view "${{ steps.build.outputs.build_id }}" --json)
+          ARTIFACT_URL=$(echo "$BUILD_VIEW" | jq -r '.artifacts.url // .url // .buildUrl')
+          echo "Downloading from: $ARTIFACT_URL"
+          curl -fL -H "Authorization: Bearer $EXPO_TOKEN" "$ARTIFACT_URL" -o app-release.apk
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qr-toolkit-preview-apk
+          path: 'app-release.apk'
+          retention-days: 7
+
+  release:
+    if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: EAS production APK
+        id: build
+        run: |
+          BUILD_JSON=$(npx eas-cli build --json --wait --profile=production --platform=android)
+          BUILD_ID=$(echo "$BUILD_JSON" | jq -r '.builds[0].id')
+          echo "build_id=$BUILD_ID" >> "$GITHUB_OUTPUT"
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      - name: Fetch build artifact
+        run: |
+          BUILD_VIEW=$(npx eas-cli build:view "${{ steps.build.outputs.build_id }}" --json)
+          ARTIFACT_URL=$(echo "$BUILD_VIEW" | jq -r '.artifacts.url // .url // .buildUrl')
+          echo "Downloading from: $ARTIFACT_URL"
+          curl -fL -H "Authorization: Bearer $EXPO_TOKEN" "$ARTIFACT_URL" -o qr-toolkit-release.apk
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      - name: Attach to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          if ! gh release view "$GITHUB_REF_NAME" &>/dev/null; then
+            gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes "EAS production build"
+          fi
+          gh release upload "$GITHUB_REF_NAME" ./qr-toolkit-release.apk --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
