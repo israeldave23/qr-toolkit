@@ -1,6 +1,6 @@
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
 import { useState, useRef } from 'react';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import QRCode from 'react-native-qrcode-svg';
 import type { Svg } from 'react-native-svg';
 import { useTheme } from '../hooks/useTheme';
@@ -31,13 +31,32 @@ const SIZE_OPTIONS = [
   { value: 240, label: 'L' },
 ];
 
+const TEMPLATE_IDS: TemplateType[] = ['text','url','email','phone','sms','wifi','vcard','location','event'];
+
+function initialTemplate(params: { template?: string }): TemplateType {
+  const t = params.template as TemplateType;
+  return TEMPLATE_IDS.includes(t) ? t : 'text';
+}
+
+function initialValues(params: { values?: string }): Record<string, string> {
+  if (params.values) {
+    try {
+      const parsed = JSON.parse(params.values);
+      if (parsed && typeof parsed === 'object') return parsed as Record<string, string>;
+    } catch {}
+  }
+  return { text: '' };
+}
+
 export default function Generate() {
   const { colors } = useTheme();
   const [adsEnabled] = useAdsEnabled();
-  const { settings, update } = useSettings();  const [selectedType, setSelectedType] = useState<TemplateType>('text');
-  const [values, setValues] = useState<Record<string, string>>({ text: '' });
-  const [fgColor, setFgColor] = useState(settings?.qrGen.fg || settings?.genColors.fg || '#000000');
-  const [bgColor, setBgColor] = useState(settings?.qrGen.bg || settings?.genColors.bg || '#FFFFFF');
+  const { settings, update } = useSettings();
+  const params = useLocalSearchParams<{ template?: string; values?: string }>();
+  const [selectedType, setSelectedType] = useState<TemplateType>(() => initialTemplate(params));
+  const [values, setValues] = useState<Record<string, string>>(() => initialValues(params));
+  const [fgColor, setFgColor] = useState(settings?.qrGen.fg || '#000000');
+  const [bgColor, setBgColor] = useState(settings?.qrGen.bg || '#FFFFFF');
   const [ecc, setEcc] = useState<QrErrorCorrection>(settings?.qrGen.errorCorrection || 'M');
   const [size, setSize] = useState(settings?.qrGen.size || 180);
   const svgRef = useRef<Svg | null>(null);
@@ -47,6 +66,11 @@ export default function Generate() {
 
   const updateValue = (key: string, val: string) => {
     setValues((prev) => ({ ...prev, [key]: val }));
+  };
+
+  const persistQrGen = (partial: Partial<import('../models').QrGenPreferences>) => {
+    if (!settings) return;
+    update({ qrGen: { ...settings.qrGen, ...partial } });
   };
 
   const navigateToResult = () => {
@@ -173,11 +197,11 @@ export default function Generate() {
           <View style={styles.colorRow}>
             <View style={styles.colorPick}>
               <Text style={[styles.colorLabel, { color: colors.textSecondary }]}>Foreground</Text>
-              <TouchableOpacity style={[styles.colorDot, { backgroundColor: fgColor, borderColor: colors.border }]} onPress={() => { const next = fgColor === '#000000' ? '#4F46E5' : '#000000'; setFgColor(next); update({ qrGen: { ...settings!.qrGen, fg: next } }); }} />
+              <TouchableOpacity style={[styles.colorDot, { backgroundColor: fgColor, borderColor: colors.border }]} onPress={() => { const next = fgColor === '#000000' ? '#4F46E5' : '#000000'; setFgColor(next); persistQrGen({ fg: next }); }} />
             </View>
             <View style={styles.colorPick}>
               <Text style={[styles.colorLabel, { color: colors.textSecondary }]}>Background</Text>
-              <TouchableOpacity style={[styles.colorDot, { backgroundColor: bgColor, borderColor: colors.border }]} onPress={() => { const next = bgColor === '#FFFFFF' ? '#EEF2FF' : '#FFFFFF'; setBgColor(next); update({ qrGen: { ...settings!.qrGen, bg: next } }); }} />
+              <TouchableOpacity style={[styles.colorDot, { backgroundColor: bgColor, borderColor: colors.border }]} onPress={() => { const next = bgColor === '#FFFFFF' ? '#EEF2FF' : '#FFFFFF'; setBgColor(next); persistQrGen({ bg: next }); }} />
             </View>
           </View>
           <View style={styles.customRow}>
@@ -188,7 +212,7 @@ export default function Generate() {
                   <TouchableOpacity
                     key={o.id}
                     style={[styles.chip, { backgroundColor: ecc === o.id ? colors.primary : colors.surfaceSecondary, borderColor: ecc === o.id ? colors.primary : colors.border }]}
-                    onPress={() => { setEcc(o.id); update({ qrGen: { ...settings!.qrGen, errorCorrection: o.id } }); }}
+                    onPress={() => { setEcc(o.id); persistQrGen({ errorCorrection: o.id }); }}
                   >
                     <Text style={{ color: ecc === o.id ? '#FFFFFF' : colors.text, fontSize: 12, fontWeight: '600' }}>{o.label}</Text>
                   </TouchableOpacity>
@@ -202,7 +226,7 @@ export default function Generate() {
                   <TouchableOpacity
                     key={o.value}
                     style={[styles.chip, { backgroundColor: size === o.value ? colors.primary : colors.surfaceSecondary, borderColor: size === o.value ? colors.primary : colors.border }]}
-                    onPress={() => { setSize(o.value); update({ qrGen: { ...settings!.qrGen, size: o.value } }); }}
+                    onPress={() => { setSize(o.value); persistQrGen({ size: o.value }); }}
                   >
                     <Text style={{ color: size === o.value ? '#FFFFFF' : colors.text, fontSize: 12, fontWeight: '600' }}>{o.label}</Text>
                   </TouchableOpacity>

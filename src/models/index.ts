@@ -21,6 +21,11 @@ export type QrDetectedType =
   | 'vcard'
   | 'location'
   | 'event'
+  | 'ean13'
+  | 'ean8'
+  | 'upc_a'
+  | 'code128'
+  | 'code39'
   | 'unknown';
 
 export interface QrPayload {
@@ -60,7 +65,6 @@ export interface QrGenPreferences {
 export interface AppSettings {
   theme: ThemePreference;
   scanner: ScannerPreferences;
-  genColors: { fg: string; bg: string };
   qrGen: QrGenPreferences;
   adsEnabled: boolean;
 }
@@ -79,7 +83,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
     hapticsEnabled: true,
     continuousScan: false,
   },
-  genColors: { fg: '#000000', bg: '#FFFFFF' },
   qrGen: QRGEN_DEFAULTS,
   adsEnabled: true,
 };

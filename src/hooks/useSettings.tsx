@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { loadSettings, persistSettings, type AppSettings } from '../services/settings';
-import { setHapticsEnabled } from '../services/feedback';
+import { setHapticsEnabled, setSoundEnabled } from '../services/feedback';
 
 export function useSettings() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -10,6 +10,7 @@ export function useSettings() {
     loadSettings().then((s) => {
       setSettings(s);
       setHapticsEnabled(s.scanner.hapticsEnabled);
+      setSoundEnabled(s.scanner.soundEnabled);
       setLoading(false);
     });
   }, []);
@@ -18,6 +19,7 @@ export function useSettings() {
     const next = settings ? { ...settings, ...partial } : partial as AppSettings;
     setSettings(next);
     setHapticsEnabled(next.scanner.hapticsEnabled);
+    setSoundEnabled(next.scanner.soundEnabled);
     persistSettings(next);
   };
 
@@ -25,7 +27,5 @@ export function useSettings() {
 
   const setScanner = (scanner: AppSettings['scanner']) => update({ scanner });
 
-  const setGenColors = (genColors: AppSettings['genColors']) => update({ genColors });
-
-  return { settings, loading, update, setTheme, setScanner, setGenColors };
+  return { settings, loading, update, setTheme, setScanner };
 }

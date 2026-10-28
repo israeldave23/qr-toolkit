@@ -1,7 +1,9 @@
 import { Tabs } from 'expo-router';
+import { useEffect } from 'react';
 import { ThemeProvider, useTheme } from '../hooks/useTheme';
 import { Icon } from '../components/Icon';
 import { StatusBar } from 'expo-status-bar';
+import { migrateHistory } from '../services/history';
 
 function Statusbar() {
   const { mode } = useTheme();
@@ -10,6 +12,10 @@ function Statusbar() {
 
 function MainTabs() {
   const { colors } = useTheme();
+
+  useEffect(() => {
+    migrateHistory().catch(() => {});
+  }, []);
 
   return (
     <Tabs

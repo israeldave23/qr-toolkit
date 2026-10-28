@@ -6,9 +6,18 @@ export function detectType(content: string): QrDetectedType {
   if (content.startsWith('mailto:')) return 'email';
   if (content.startsWith('tel:')) return 'phone';
   if (content.startsWith('sms:')) return 'sms';
-  if (content.startsWith('WiFi:')) return 'wifi';
+  if (content.startsWith('WiFi:') || content.startsWith('WIFI:')) return 'wifi';
   if (content.startsWith('BEGIN:VCARD')) return 'vcard';
   if (content.startsWith('geo:')) return 'location';
+  if (content.startsWith('BEGIN:VEVENT') || content.startsWith('EVENT:BEGIN:VEVENT')) return 'event';
+  // bare domain heuristic (no scheme)
+  if (/^[\w-]+(\.[\w-]+)+(:\d+)?(\/\S*)?$/.test(content)) return 'url';
+  // EAN-13: 13 digits, starts with 977-988 (typical retail)
+  if (/^97[7-8]\d{10}$/.test(content)) return 'ean13';
+  // EAN-8: 8 digits
+  if (/^\d{8}$/.test(content)) return 'ean8';
+  // UPC-A: 12 digits
+  if (/^\d{12}$/.test(content)) return 'upc_a';
   return 'text';
 }
 
@@ -22,6 +31,11 @@ export const TYPE_LABELS: Record<QrDetectedType, string> = {
   vcard: 'Contact',
   location: 'Location',
   event: 'Event',
+  ean13: 'EAN-13',
+  ean8: 'EAN-8',
+  upc_a: 'UPC-A',
+  code128: 'Code 128',
+  code39: 'Code 39',
   unknown: 'Code',
 };
 

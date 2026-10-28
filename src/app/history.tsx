@@ -1,14 +1,16 @@
 import { View, Text, TouchableOpacity, StyleSheet, FlatList, Alert, TextInput, Share } from 'react-native';
 import { useCallback, useState } from 'react';
 import { useFocusEffect, router } from 'expo-router';
+import QRCode from 'react-native-qrcode-svg';
 import { useTheme } from '../hooks/useTheme';
 import { Icon } from '../components/Icon';
 import { Badge } from '../components/Badge';
 import { EmptyState } from '../components/EmptyState';
-import { getHistory, deleteItem, toggleFavorite, getFavorites, clearHistory } from '../services/history';
+import { getHistory, deleteItem, toggleFavorite, getFavorites, clearHistory, redactSensitive } from '../services/history';
 import { copyToClipboard } from '../services/share';
 import { BannerAdComponent, useAdsEnabled } from '../services/ads';
 import { type QrPayload } from '../models';
+import { detectType } from '../utils/qr';
 
 type FilterTab = 'all' | 'scan' | 'gen' | 'favorites';
 
@@ -77,60 +79,95 @@ export default function History() {
     return matchesFilter && matchesSearch;
   });
 
-  const renderItem = ({ item }: { item: QrPayload }) => (
-    <TouchableOpacity
-      style={[styles.item, { backgroundColor: colors.surface, borderColor: colors.border }]}
-      onPress={() => router.push({ pathname: '/result', params: { content: item.content, source: item.source } })}
-      accessibilityRole="button"
-      accessibilityLabel={`Open ${item.content.slice(0, 30)}`}
-    >
-      <View style={styles.itemMain}>
-        <View style={styles.itemTop}>
-          <Badge label={item.source === 'scan' ? 'Scanned' : 'Generated'} type={item.source} />
-          <Text style={[styles.itemDate, { color: colors.textTertiary }]}>
-            {new Date(item.createdAt).toLocaleString()}
+  const reuseItem = (item: QrPayload) => {
+    const t = detectType(item.content);
+    // Only map known template types to prefill; fall back to text otherwise
+    const template =
+      ['text','url','email','phone','sms','wifi','vcard','location','event'].includes(t)
+        ? t
+        : 'text';
+    const parsedValues: Record<string, string> =
+      template === 'text' ? { text: item.content } : {};
+    router.push({
+      pathname: '/generate',
+      params: { template, values: JSON.stringify(parsedValues) },
+    });
+  };
+
+  const renderItem = ({ item }: { item: QrPayload }) => {
+    const t = detectType(item.content);
+    const displayContent = redactSensitive(item.content, t);
+    return (
+      <TouchableOpacity
+        style={[styles.item, { backgroundColor: colors.surface, borderColor: colors.border }]}
+        onPress={() =>
+          router.push({
+            pathname: '/result',
+            params: { id: item.id, content: item.content, source: item.source },
+          })
+        }
+        accessibilityRole="button"
+        accessibilityLabel={`Open ${displayContent.slice(0, 30)}`}
+      >
+        {/* QR thumbnail */}
+        <View style={[styles.thumbWrap, { backgroundColor: colors.surfaceSecondary }]}>
+          <QRCode value={item.content} size={48} />
+        </View>
+        <View style={styles.itemMain}>
+          <View style={styles.itemTop}>
+            <Badge label={item.source === 'scan' ? 'Scanned' : 'Generated'} type={item.source} />
+            <Text style={[styles.itemDate, { color: colors.textTertiary }]}>
+              {new Date(item.createdAt).toLocaleString()}
+            </Text>
+          </View>
+          <Text style={[styles.itemContent, { color: colors.text }]} numberOfLines={2}>
+            {displayContent}
           </Text>
         </View>
-        <Text style={[styles.itemContent, { color: colors.text }]} numberOfLines={2}>
-          {item.content}
-        </Text>
-      </View>
-      <View style={styles.itemActions}>
-        <TouchableOpacity
-          onPress={() => toggleFav(item)}
-          style={styles.iconBtn}
-          accessibilityLabel={favIds.has(item.id) ? 'Remove from favorites' : 'Add to favorites'}
-        >
-          <Icon
-            name="heart"
-            size={20}
-            color={favIds.has(item.id) ? colors.warning : colors.textTertiary}
-          />
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => copyItem(item)}
-          style={styles.iconBtn}
-          accessibilityLabel="Copy content"
-        >
-          <Icon name="copy" size={20} color={colors.textTertiary} />
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => shareItem(item)}
-          style={styles.iconBtn}
-          accessibilityLabel="Share content"
-        >
-          <Icon name="share" size={20} color={colors.textTertiary} />
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => remove(item.id)}
-          style={styles.iconBtn}
-          accessibilityLabel="Delete entry"
-        >
-          <Icon name="trash" size={20} color={colors.error} />
-        </TouchableOpacity>
-      </View>
-    </TouchableOpacity>
-  );
+        <View style={styles.itemActions}>
+          <TouchableOpacity
+            onPress={() => reuseItem(item)}
+            style={styles.iconBtn}
+            accessibilityLabel="Reuse in generator"
+          >
+            <Icon name="plus-circle" size={20} color={colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => toggleFav(item)}
+            style={styles.iconBtn}
+            accessibilityLabel={favIds.has(item.id) ? 'Remove from favorites' : 'Add to favorites'}
+          >
+            <Icon
+              name="heart"
+              size={20}
+              color={favIds.has(item.id) ? colors.warning : colors.textTertiary}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => copyItem(item)}
+            style={styles.iconBtn}
+            accessibilityLabel="Copy content"
+          >
+            <Icon name="copy" size={20} color={colors.textTertiary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => shareItem(item)}
+            style={styles.iconBtn}
+            accessibilityLabel="Share content"
+          >
+            <Icon name="share" size={20} color={colors.textTertiary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => remove(item.id)}
+            style={styles.iconBtn}
+            accessibilityLabel="Delete entry"
+          >
+            <Icon name="trash" size={20} color={colors.error} />
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   const filters: { id: FilterTab; label: string }[] = [
     { id: 'all', label: 'All' },
@@ -259,6 +296,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     gap: 12,
+  },
+  thumbWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 8,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   itemMain: {
     flex: 1,

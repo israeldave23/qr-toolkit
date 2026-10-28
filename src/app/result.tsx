@@ -7,7 +7,7 @@ import type { Svg } from 'react-native-svg';
 import { useTheme } from '../hooks/useTheme';
 import { Icon } from '../components/Icon';
 import { getQr } from '../utils/qrcache';
-import { toggleFavorite, isFavorite } from '../services/history';
+import { toggleFavorite, isFavorite, redactSensitive } from '../services/history';
 import { detectType, TYPE_LABELS } from '../utils/qr';
 import { saveQrImageToPhotos, shareQrImage, copyToClipboard } from '../services/share';
 import { useAdsEnabled, showInterstitialIfReady } from '../services/ads';
@@ -17,21 +17,33 @@ type RouteParams = {
   id?: string;
   content?: string;
   source?: 'scan' | 'gen';
+  rawType?: string;
 };
+
+// Map raw camera barcode type → display label (overrides detectType for 1-D barcodes)
+function labelFor(qrType: QrDetectedType, rawType?: string): string {
+  if (rawType) {
+    const m: Record<string, string> = {
+      ean13: 'EAN-13', ean8: 'EAN-8', upc_a: 'UPC-A', code128: 'Code 128', code39: 'Code 39',
+    };
+    if (m[rawType]) return m[rawType];
+  }
+  return TYPE_LABELS[qrType] ?? TYPE_LABELS.unknown;
+}
 
 export default function Result() {
   const { colors } = useTheme();
   const [adsEnabled] = useAdsEnabled();
   const params = useLocalSearchParams<RouteParams>();
-  const { id, content: paramContent, source: paramSource } = params;
+  const { id, content: paramContent, source: paramSource, rawType } = params;
   const [isFav, setIsFav] = useState(false);
   const svgRef = useRef<Svg | null>(null);
 
   const entry = id ? getQr(id) : undefined;
   const content = entry?.content ?? paramContent ?? '';
-  const source = entry?.source ?? paramSource ?? 'scan';
   const qrType: QrDetectedType = detectType(content);
   const itemId = entry?.id;
+  const displayContent = redactSensitive(content, qrType);
 
   useEffect(() => {
     if (itemId) {
@@ -39,8 +51,6 @@ export default function Result() {
     }
   }, [itemId]);
 
-  // Natural transition: interstitial when landing on a generated result, frequency-capped.
-  // Runs once on mount; does not block the user's ability to act on the scanned/generated result.
   useEffect(() => {
     if (adsEnabled && paramSource === 'gen') {
       showInterstitialIfReady();
@@ -56,24 +66,24 @@ export default function Result() {
     );
   }
 
-  const config = TYPE_LABELS[qrType];
+  const config = labelFor(qrType, rawType);
 
   const open = () => {
-    if (!content) return;
     const actionLabel: Record<string, string> = {
       url: 'Open this link?',
       email: 'Send email?',
       phone: 'Call this number?',
       sms: 'Send SMS?',
+      location: 'Open location?',
     };
     const msg = actionLabel[qrType] ?? 'Open this link?';
-    Alert.alert(msg, content.slice(0, 120), [
+    Alert.alert(msg, displayContent.slice(0, 120), [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: qrType === 'url' ? 'Open' : qrType === 'email' ? 'Send' : qrType === 'phone' ? 'Call' : 'Send',
+        text: qrType === 'url' ? 'Open' : qrType === 'email' ? 'Send' : qrType === 'phone' ? 'Call' : qrType === 'sms' ? 'Send' : 'Open',
         onPress: () => {
           Linking.openURL(content).catch(() =>
-            Alert.alert('Error', 'Cannot open this link.')
+            Alert.alert('Error', 'Cannot open this content.')
           );
         },
       },
@@ -104,8 +114,10 @@ export default function Result() {
     setIsFav(newFav);
   };
 
+  const canOpen = ['url', 'email', 'phone', 'sms', 'location'].includes(qrType);
+
   const actions: { label: string; show: boolean }[] = [
-    { label: 'Open', show: qrType === 'url' || qrType === 'email' || qrType === 'phone' || qrType === 'sms' },
+    { label: 'Open', show: canOpen },
     { label: 'Copy', show: true },
     { label: 'Share', show: true },
     { label: 'Share Image', show: true },
@@ -149,31 +161,30 @@ export default function Result() {
 
         <View style={[styles.contentCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Text style={[styles.contentText, { color: colors.text }]} selectable>
-            {content}
+            {displayContent}
           </Text>
         </View>
 
-        {source === 'gen' && (
-          <View style={styles.previewSection}>
-            <Text style={[styles.previewLabel, { color: colors.textSecondary }]}>QR Preview</Text>
-            <View style={[styles.previewCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <QRCode
-                getRef={(ref: Svg) => {
-                  svgRef.current = ref;
-                }}
-                value={content}
-                size={180}
-              />
-            </View>
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: colors.surfaceSecondary, alignSelf: 'center' }]}
-              onPress={() => { saveQrImageToPhotos(svgRef.current); }}
-              accessibilityLabel="Save image to Photos"
-            >
-              <Text style={[styles.actionLabel, { color: colors.text }]}>Save Image</Text>
-            </TouchableOpacity>
+        {/* QR preview for all sources — scanned codes can also be re-rendered */}
+        <View style={styles.previewSection}>
+          <Text style={[styles.previewLabel, { color: colors.textSecondary }]}>QR Preview</Text>
+          <View style={[styles.previewCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <QRCode
+              getRef={(ref: Svg) => {
+                svgRef.current = ref;
+              }}
+              value={content}
+              size={180}
+            />
           </View>
-        )}
+          <TouchableOpacity
+            style={[styles.actionBtn, { backgroundColor: colors.surfaceSecondary, alignSelf: 'center' }]}
+            onPress={() => { saveQrImageToPhotos(svgRef.current); }}
+            accessibilityLabel="Save image to Photos"
+          >
+            <Text style={[styles.actionLabel, { color: colors.text }]}>Save Image</Text>
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.actions}>
           {visibleActions.map((action) => (

@@ -56,7 +56,10 @@ export default function Settings() {
 
   const handleShare = async () => {
     try {
-      await Sharing.shareAsync('https://expo.dev', { mimeType: 'text/plain', dialogTitle: 'Share QR Toolkit' });
+      await Sharing.shareAsync('QR Toolkit — scan, generate, and manage QR codes. All data stays on your device.', {
+        mimeType: 'text/plain',
+        dialogTitle: 'Share QR Toolkit',
+      });
     } catch {
       Alert.alert('Error', 'Could not share.');
     }
@@ -65,9 +68,17 @@ export default function Settings() {
   const handleRate = () => {
     const url =
       Platform.OS === 'ios'
-        ? 'https://apps.apple.com'
-        : 'https://play.google.com/store';
-    Linking.openURL(url);
+        ? 'https://apps.apple.com/app/qr-toolkit'
+        : 'https://play.google.com/store/apps/details?id=com.qrtoolkit.app';
+    Linking.openURL(url).catch(() => {});
+  };
+
+  const handleOpenSystemSettings = () => {
+    Linking.openSettings().catch(() => {});
+  };
+
+  const handlePrivacyPolicy = () => {
+    Linking.openURL('https://example.com/privacy').catch(() => {});
   };
 
   const themeOptions: { value: ThemeMode; label: string }[] = [
@@ -76,8 +87,18 @@ export default function Settings() {
     { value: 'dark', label: 'Dark' },
   ];
 
+  // Null-safety: disable all interactions until settings load
+  const containerStyle = settings
+    ? undefined
+    : ({ opacity: 0.5, pointerEvents: 'none' as const });
+
+  const onToggleScanner = (key: 'soundEnabled' | 'hapticsEnabled' | 'continuousScan', v: boolean) => {
+    if (!settings) return;
+    setScanner({ ...settings.scanner, [key]: v });
+  };
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }, containerStyle]}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <Text style={[styles.backText, { color: colors.textSecondary }]}>Back</Text>
@@ -118,7 +139,7 @@ export default function Settings() {
             right={
               <Switch
                 value={settings?.scanner.soundEnabled ?? true}
-                onValueChange={(v) => setScanner({ ...settings!.scanner, soundEnabled: v })}
+                onValueChange={(v) => onToggleScanner('soundEnabled', v)}
                 trackColor={{ true: colors.primaryMuted, false: colors.border }}
                 thumbColor={settings?.scanner.soundEnabled ? colors.primary : colors.textTertiary}
               />
@@ -131,7 +152,7 @@ export default function Settings() {
             right={
               <Switch
                 value={settings?.scanner.hapticsEnabled ?? true}
-                onValueChange={(v) => setScanner({ ...settings!.scanner, hapticsEnabled: v })}
+                onValueChange={(v) => onToggleScanner('hapticsEnabled', v)}
                 trackColor={{ true: colors.primaryMuted, false: colors.border }}
                 thumbColor={settings?.scanner.hapticsEnabled ? colors.primary : colors.textTertiary}
               />
@@ -144,10 +165,20 @@ export default function Settings() {
             right={
               <Switch
                 value={settings?.scanner.continuousScan ?? false}
-                onValueChange={(v) => setScanner({ ...settings!.scanner, continuousScan: v })}
+                onValueChange={(v) => onToggleScanner('continuousScan', v)}
                 trackColor={{ true: colors.primaryMuted, false: colors.border }}
                 thumbColor={settings?.scanner.continuousScan ? colors.primary : colors.textTertiary}
               />
+            }
+          />
+          <SettingRow
+            icon="device-phone"
+            label="Open System Settings"
+            description="For camera / photo permissions"
+            right={
+              <TouchableOpacity onPress={handleOpenSystemSettings}>
+                <Text style={[styles.actionText, { color: colors.primary }]}>Open</Text>
+              </TouchableOpacity>
             }
           />
         </View>
@@ -163,6 +194,16 @@ export default function Settings() {
             right={
               <TouchableOpacity onPress={handleClearHistory}>
                 <Text style={[styles.actionText, { color: colors.error }]}>Clear</Text>
+              </TouchableOpacity>
+            }
+          />
+          <SettingRow
+            icon="wifi"
+            label="Privacy Policy"
+            description="All data stays on your device. No accounts. No telemetry."
+            right={
+              <TouchableOpacity onPress={handlePrivacyPolicy}>
+                <Text style={[styles.actionText, { color: colors.primary }]}>View</Text>
               </TouchableOpacity>
             }
           />

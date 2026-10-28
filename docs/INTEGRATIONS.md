@@ -27,14 +27,16 @@ Package versions, permissions, build requirements, ad placements, and privacy no
 | `@react-native-async-storage/async-storage` | `2.2.0` | No | History, favorites, settings |
 | `react-native-qrcode-svg` | `^6.3.34` | No | QR generation; `ecl` prop for error-correction level |
 | `react-native-svg` | `15.16.0` | No | `svgRef.toDataURL` for PNG export |
-| `jsqr` | `^1.4.0` | No | Fallback decoder (not currently wired; unused import in some paths) |
+| `expo-audio` | `~58.x` | No | SDK 58 audio API; `createAudioPlayer` + `Audio.preload`; in Expo Go; no dev build needed; asset: `assets/sound/beep.wav` (880 Hz, ~150 ms) |
 
 ### Haptics
 
 `src/services/feedback.ts` wraps `expo-haptics`. Flag is driven by `AppSettings.scanner.hapticsEnabled`
-and synced via `useSettings`. The `soundEnabled` toggle exists in settings but **no audio module is
-installed** — the toggle currently has no effect. Add a beep (e.g. `expo-av`) when a sound
-requirement is confirmed.
+and synced via `useSettings`.
+
+Beep on scan uses `expo-audio` (SDK 58). Asset at `assets/sound/beep.wav`. `playBeep()` in
+`src/services/feedback.ts` calls `seekTo(0)+play()` on a preloaded `AudioPlayer`. Guarded by
+`soundEnabled` in settings.
 
 ### Wi-Fi / vCard payload handling
 
@@ -48,6 +50,17 @@ raw history content to ad SDKs, analytics, or crash-reporting loggers.
 `STORAGE_VERSION = 1` in `src/models/index.ts`. `migrateHistory()` in `src/services/history.ts` runs
 ordered, idempotent migrations stored in `qr_storage_meta_v1`. Call `migrateHistory()` on app startup
 (`_layout.tsx`) before reading history.
+
+### Barcode gallery limitation
+
+On iOS, `scanFromURLAsync` supports QR codes only. Android supports all barcode types. This is a
+platform asymmetry in the underlying native API; no workaround exists.
+
+### jest-expo / @testing-library/react-native
+
+Test runner: `jest-expo` + `@testing-library/react-native` (devDependencies). Config:
+`jest.config.js` (preset: jest-expo). Tests: `tests/qr.test.ts`, `tests/models.test.ts`,
+`tests/history.test.ts` (42 tests). Run with `npm run test`.
 
 ## AdMob (`react-native-google-mobile-ads`)
 
