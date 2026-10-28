@@ -109,7 +109,12 @@ export default function Generate() {
       case 'phone':
         return <Input label="Phone" placeholder="+1234567890" value={values.phone} onChangeText={(v) => updateValue('phone', v)} keyboardType="phone-pad" />;
       case 'sms':
-        return <Input label="Phone" placeholder="+1234567890" value={values.sms} onChangeText={(v) => updateValue('sms', v)} keyboardType="phone-pad" />;
+        return (
+          <View style={styles.fieldGap}>
+            <Input label="Phone" placeholder="+1234567890" value={values.sms} onChangeText={(v) => updateValue('sms', v)} keyboardType="phone-pad" />
+            <Input label="Message" placeholder="Pre-filled SMS text (optional)" value={values.smsBody} onChangeText={(v) => updateValue('smsBody', v)} multiline style={{ minHeight: 60 }} />
+          </View>
+        );
       case 'wifi':
         return (
           <View style={styles.fieldGap}>

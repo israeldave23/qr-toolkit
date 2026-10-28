@@ -18,6 +18,16 @@ export function detectType(content: string): QrDetectedType {
   if (/^\d{8}$/.test(content)) return 'ean8';
   // UPC-A: 12 digits
   if (/^\d{12}$/.test(content)) return 'upc_a';
+  // Code 128 / Code 39: alphanumeric 1-D bars (high-density, no whitespace, no URL/scheme).
+  // Camera already returns rawType for these; detectType is used for non-camera paths
+  // (e.g. gallery scan, reuse flows) where rawType is not available.
+  // Whitespace is excluded: natural-language text almost always contains spaces,
+  // while dense alphanumerics (license plates, IDs, part numbers) usually do not.
+  if (/^[A-Za-z0-9\-._~+/]+$/.test(content) && content.length > 8 &&
+      /[A-Za-z]/.test(content) && !content.includes('://') &&
+      !/^[a-z]+:/.test(content)) {
+    return 'code128';
+  }
   return 'text';
 }
 
@@ -71,7 +81,11 @@ export function buildContent(type: TemplateType, values: Record<string, string>)
     case 'phone':
       return `tel:${values.phone || ''}`;
     case 'sms':
-      return `sms:${values.sms || ''}`;
+      // sms:1234567890?body=Hello — the body is included so the compose window
+      // opens with a pre-filled message (mobile platforms support ?body=).
+      return values.smsBody
+        ? `sms:${values.sms || ''}?body=${values.smsBody}`
+        : `sms:${values.sms || ''}`;
     case 'wifi': {
       const ssid = values.wifiSSID || '';
       const pwd = values.wifiPassword || '';
@@ -95,11 +109,76 @@ export function getTemplateFields(type: TemplateType): string[] {
     case 'url': return ['url'];
     case 'email': return ['email'];
     case 'phone': return ['phone'];
-    case 'sms': return ['sms'];
+    case 'sms': return ['sms', 'smsBody'];
     case 'wifi': return ['wifiSSID', 'wifiPassword'];
     case 'vcard': return ['vcardName', 'vcardPhone', 'vcardEmail'];
     case 'location': return ['locLat', 'locLon'];
     case 'event': return ['eventTitle', 'eventDate', 'eventLocation', 'eventDesc'];
     default: return ['text'];
+  }
+}
+
+/**
+ * Parse stored QR content back into template field values for the generator.
+ * Used by `reuseItem` so reusing any history entry pre-fills the correct fields.
+ */
+export function parseContentForTemplate(
+  type: TemplateType,
+  content: string,
+): Record<string, string> {
+  switch (type) {
+    case 'url': {
+      const m = content.match(/^https?:\/\/(.*)$/);
+      return { url: m ? m[1] : content.replace(/^https?:\/\//, '') };
+    }
+    case 'email':
+      return { email: content.replace(/^mailto:/, '') };
+    case 'phone':
+      return { phone: content.replace(/^tel:/, '') };
+    case 'sms': {
+      const m = content.match(/^sms:([^?]*)\?body=(.*)$/);
+      if (m) return { sms: m[1], smsBody: m[2] };
+      return { sms: content.replace(/^sms:/, ''), smsBody: '' };
+    }
+    case 'wifi': {
+      const m = content.match(/^WIFI:T:(\w+);S:([^;]*)(;P:([^;]*))?;;?$/);
+      if (!m) return { wifiSSID: '', wifiPassword: '' };
+      return {
+        wifiSSID: m[2] ?? '',
+        wifiPassword: m[4] ?? '',
+      };
+    }
+    case 'vcard': {
+      const lines = content.split('\n');
+      const grab = (key: string) => {
+        const l = lines.find((x) => x.startsWith(`${key}:`));
+        return l ? l.slice(key.length + 1) : '';
+      };
+      return {
+        vcardName: grab('FN'),
+        vcardPhone: grab('TEL'),
+        vcardEmail: grab('EMAIL'),
+      };
+    }
+    case 'location': {
+      const m = content.match(/^geo:([^,]+),(.+)$/);
+      if (!m) return { locLat: '', locLon: '' };
+      return { locLat: m[1], locLon: m[2] };
+    }
+    case 'event': {
+      const lines = content.replace(/^EVENT:/, '').split('\n');
+      const grab = (key: string) => {
+        const l = lines.find((x) => x.startsWith(`${key}:`));
+        return l ? l.slice(key.length + 1) : '';
+      };
+      return {
+        eventTitle: grab('SUMMARY'),
+        eventDate: grab('DTSTART'),
+        eventLocation: grab('LOCATION'),
+        eventDesc: grab('DESCRIPTION'),
+      };
+    }
+    default:
+      return { text: content };
   }
 }

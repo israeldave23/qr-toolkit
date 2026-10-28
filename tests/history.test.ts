@@ -1,3 +1,12 @@
+import {
+  redactSensitive,
+  saveEntry,
+  getHistory,
+  toggleFavorite,
+  getFavorites,
+  migrateHistory,
+} from '../src/services/history';
+
 jest.mock('@react-native-async-storage/async-storage', () => {
   const store = new Map<string, string>();
   return {
@@ -18,14 +27,6 @@ jest.mock('@react-native-async-storage/async-storage', () => {
   };
 });
 
-import {
-  redactSensitive,
-  saveEntry,
-  getHistory,
-  toggleFavorite,
-  getFavorites,
-  migrateHistory,
-} from '../src/services/history';
 
 describe('redactSensitive', () => {
   it('masks Wi-Fi password in WIFI: payload', () => {

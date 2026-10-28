@@ -93,6 +93,13 @@ describe('detectType', () => {
   it('plain text falls through to text', () =>
     expect(detectType('just some words')).toBe('text'));
   it('empty → unknown', () => expect(detectType('')).toBe('unknown'));
+
+  it('alphanumeric high-density string → code128', () =>
+    expect(detectType('ABC-12345-XYZ')).toBe('code128'));
+  it('short alphanumeric does NOT trigger code128 (length guard)', () =>
+    expect(detectType('ABC123')).toBe('text'));
+  it('scheme-prefixed URL never matches code128', () =>
+    expect(detectType('https://example.com/path')).toBe('url'));
 });
 
 describe('getTemplateFields', () => {

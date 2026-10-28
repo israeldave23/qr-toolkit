@@ -10,7 +10,7 @@ import { getHistory, deleteItem, toggleFavorite, getFavorites, clearHistory, red
 import { copyToClipboard } from '../services/share';
 import { BannerAdComponent, useAdsEnabled } from '../services/ads';
 import { type QrPayload } from '../models';
-import { detectType } from '../utils/qr';
+import { detectType, parseContentForTemplate, type TemplateType } from '../utils/qr';
 
 type FilterTab = 'all' | 'scan' | 'gen' | 'favorites';
 
@@ -81,13 +81,11 @@ export default function History() {
 
   const reuseItem = (item: QrPayload) => {
     const t = detectType(item.content);
-    // Only map known template types to prefill; fall back to text otherwise
-    const template =
-      ['text','url','email','phone','sms','wifi','vcard','location','event'].includes(t)
-        ? t
+    const template: TemplateType =
+      (['text','url','email','phone','sms','wifi','vcard','location','event'] as const).includes(t as TemplateType)
+        ? t as TemplateType
         : 'text';
-    const parsedValues: Record<string, string> =
-      template === 'text' ? { text: item.content } : {};
+    const parsedValues = parseContentForTemplate(template, item.content);
     router.push({
       pathname: '/generate',
       params: { template, values: JSON.stringify(parsedValues) },
