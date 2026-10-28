@@ -1,11 +1,23 @@
 {
-  "cli": { "version": ">= 16.0.0" },
+  "cli": {
+    "version": ">= 16.0.0"
+  },
   "build": {
     "preview": {
-      "android": { "distribution": "internal" }
+      "android": {
+        "distribution": "internal"
+      }
     },
     "production": {
-      "android": { "distribution": "internal", "autoIncrement": true }
+      "android": {
+        "distribution": "internal",
+        "autoIncrement": true
+      }
+    },
+    "development": {
+      "android": {
+        "distribution": "internal"
+      }
     }
   }
 }
