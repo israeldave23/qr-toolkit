@@ -12,11 +12,10 @@ import {
 } from 'react-native-google-mobile-ads';
 import { loadSettings, persistSettings } from './settings';
 
-// ponytail: TestIds used in dev; swap to real ca-app-pub-… unit IDs in production.
-// Add when: AdMob app + ad units exist in the dashboard and app IDs are in app.json.
+// Interstitial/banner: real production IDs. Rewarded: no rewarded unit provided — keep test ID.
 const UNITS = {
-  banner: TestIds.ADAPTIVE_BANNER,
-  interstitial: TestIds.INTERSTITIAL,
+  banner: 'ca-app-pub-5236559514557783/2973447927',
+  interstitial: 'ca-app-pub-5236559514557783/2861555255',
   rewarded: TestIds.REWARDED,
 };
 

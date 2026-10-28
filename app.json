@@ -58,8 +58,8 @@
       [
         "react-native-google-mobile-ads",
         {
-          "androidAppId": "ca-app-pub-3940286549654080~3347511713",
-          "iosAppId": "ca-app-pub-3940286549654080~1458002511",
+          "androidAppId": "ca-app-pub-5236559514557783~1339048038",
+          "iosAppId": "ca-app-pub-5236559514557783~1458002511",
           "optimizeInitialization": true,
           "optimizeAdLoading": true,
           "userTrackingUsageDescription": "Used to show personalized ads."
