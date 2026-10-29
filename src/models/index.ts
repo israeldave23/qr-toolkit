@@ -60,6 +60,8 @@ export interface QrGenPreferences {
   bg: string;
   errorCorrection: QrErrorCorrection;
   size: number;
+  logo: string | null;
+  border: 0 | 1 | 2 | 3;
 }
 
 export interface AppSettings {
@@ -74,6 +76,8 @@ export const QRGEN_DEFAULTS: QrGenPreferences = {
   bg: '#FFFFFF',
   errorCorrection: 'M',
   size: 180,
+  logo: null,
+  border: 0,
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -87,7 +91,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   adsEnabled: true,
 };
 
-export const STORAGE_VERSION = 1;
+export const STORAGE_VERSION = 2;
 
 export type StorageSchema = {
   version: number;

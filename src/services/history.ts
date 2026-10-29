@@ -85,6 +85,35 @@ export async function clearHistory(): Promise<void> {
   await AsyncStorage.removeItem(FAV_KEY);
 }
 
+export async function batchDelete(ids: string[]): Promise<number> {
+  const list = await getHistory();
+  const idSet = new Set(ids);
+  const remaining = list.filter((i) => !idSet.has(i.id));
+  await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(remaining));
+  // Also remove any favourites pointing to deleted items
+  const favs = await getFavorites();
+  const cleanFavs = favs.filter((f) => !idSet.has(f));
+  await AsyncStorage.setItem(FAV_KEY, JSON.stringify(cleanFavs));
+  return ids.length;
+}
+
+export async function importHistory(items: unknown): Promise<{ added: number; skipped: number }> {
+  if (!Array.isArray(items)) return { added: 0, skipped: 0 };
+  const existing = await getHistory();
+  const existingIds = new Set(existing.map((i) => i.id));
+  const valid: QrPayload[] = (items as unknown[])
+    .filter(
+      (item): item is QrPayload =>
+        item != null && typeof item === 'object' &&
+        'content' in item && 'source' in item && 'createdAt' in item,
+    )
+    .filter((item) => !existingIds.has(item.id));
+  const merged = [...valid, ...existing];
+  if (merged.length > 500) merged.splice(500);
+  await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(merged));
+  return { added: valid.length, skipped: items.length - valid.length };
+}
+
 export async function getFavorites(): Promise<string[]> {
   const raw = await AsyncStorage.getItem(FAV_KEY);
   if (!raw) return [];

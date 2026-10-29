@@ -1,6 +1,7 @@
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Image } from 'react-native';
 import { useState, useRef } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import QRCode from 'react-native-qrcode-svg';
 import type { Svg } from 'react-native-svg';
 import { useTheme } from '../hooks/useTheme';
@@ -31,6 +32,20 @@ const SIZE_OPTIONS = [
   { value: 240, label: 'L' },
 ];
 
+const BORDER_OPTIONS: { value: 0 | 1 | 2 | 3; label: string }[] = [
+  { value: 0, label: 'None' },
+  { value: 1, label: 'Small' },
+  { value: 2, label: 'Medium' },
+  { value: 3, label: 'Large' },
+];
+
+const BORDER_PADDING: Record<0 | 1 | 2 | 3, number> = {
+  0: 0,
+  1: 8,
+  2: 16,
+  3: 28,
+};
+
 const TEMPLATE_IDS: TemplateType[] = ['text','url','email','phone','sms','wifi','vcard','location','event'];
 
 function initialTemplate(params: { template?: string }): TemplateType {
@@ -59,6 +74,8 @@ export default function Generate() {
   const [bgColor, setBgColor] = useState(settings?.qrGen.bg || '#FFFFFF');
   const [ecc, setEcc] = useState<QrErrorCorrection>(settings?.qrGen.errorCorrection || 'M');
   const [size, setSize] = useState(settings?.qrGen.size || 180);
+  const [logo, setLogo] = useState<string | null>(settings?.qrGen.logo ?? null);
+  const [border, setBorder] = useState<0 | 1 | 2 | 3>(settings?.qrGen.border ?? 0);
   const svgRef = useRef<Svg | null>(null);
 
   const currentContent = buildContent(selectedType, values);
@@ -71,6 +88,29 @@ export default function Generate() {
   const persistQrGen = (partial: Partial<import('../models').QrGenPreferences>) => {
     if (!settings) return;
     update({ qrGen: { ...settings.qrGen, ...partial } });
+  };
+
+  const pickLogo = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.7,
+      });
+      if (result.canceled || !result.assets?.length) return;
+      const uri = result.assets[0].uri;
+      setLogo(uri);
+      persistQrGen({ logo: uri, errorCorrection: 'H' });
+      setEcc('H');
+    } catch {
+      Alert.alert('Error', 'Could not access photo library.');
+    }
+  };
+
+  const clearLogo = () => {
+    setLogo(null);
+    persistQrGen({ logo: null });
   };
 
   const navigateToResult = () => {
@@ -187,18 +227,67 @@ export default function Generate() {
       {hasContent && (
         <View style={styles.previewSection}>
           <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Preview</Text>
-          <View style={[styles.previewCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <QRCode
-              getRef={(ref: Svg) => {
-                svgRef.current = ref;
-              }}
-              value={currentContent}
-              size={size}
-              color={fgColor}
-              backgroundColor={bgColor}
-              ecl={ecc}
-            />
+          <View style={[styles.previewCard, { backgroundColor: colors.surface, borderColor: colors.border, padding: BORDER_PADDING[border] }]}>
+            {logo ? (
+              <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+                <QRCode
+                  getRef={(ref: Svg) => { svgRef.current = ref; }}
+                  value={currentContent}
+                  size={size}
+                  color={fgColor}
+                  backgroundColor={bgColor}
+                  ecl="H"
+                />
+                <Image source={{ uri: logo }} style={{ position: 'absolute', width: size * 0.3, height: size * 0.3, borderRadius: 4 }} />
+              </View>
+            ) : (
+              <QRCode
+                getRef={(ref: Svg) => { svgRef.current = ref; }}
+                value={currentContent}
+                size={size}
+                color={fgColor}
+                backgroundColor={bgColor}
+                ecl={ecc}
+              />
+            )}
           </View>
+
+          <View style={styles.logoRow}>
+            <View>
+              <Text style={[styles.optionLabel, { color: colors.textSecondary }]}>Logo</Text>
+              <View style={styles.chipRow}>
+                <TouchableOpacity
+                  style={[styles.chip, { backgroundColor: logo ? colors.primary : colors.surfaceSecondary, borderColor: logo ? colors.primary : colors.border }]}
+                  onPress={pickLogo}
+                >
+                  <Text style={{ color: logo ? '#FFFFFF' : colors.text, fontSize: 12, fontWeight: '600' }}>{logo ? '✓ Picked' : 'Pick Logo'}</Text>
+                </TouchableOpacity>
+                {logo && (
+                  <TouchableOpacity
+                    style={[styles.chip, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}
+                    onPress={clearLogo}
+                  >
+                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: '600' }}>Remove</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+            <View>
+              <Text style={[styles.optionLabel, { color: colors.textSecondary }]}>Border</Text>
+              <View style={styles.chipRow}>
+                {BORDER_OPTIONS.map((o) => (
+                  <TouchableOpacity
+                    key={o.value}
+                    style={[styles.chip, { backgroundColor: border === o.value ? colors.primary : colors.surfaceSecondary, borderColor: border === o.value ? colors.primary : colors.border }]}
+                    onPress={() => { setBorder(o.value); persistQrGen({ border: o.value }); }}
+                  >
+                    <Text style={{ color: border === o.value ? '#FFFFFF' : colors.text, fontSize: 12, fontWeight: '600' }}>{o.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </View>
+
           <View style={styles.colorRow}>
             <View style={styles.colorPick}>
               <Text style={[styles.colorLabel, { color: colors.textSecondary }]}>Foreground</Text>
@@ -315,6 +404,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 16,
     alignItems: 'center',
+  },
+  logoRow: {
+    flexDirection: 'row',
+    gap: 16,
+    marginTop: 12,
   },
   colorRow: {
     flexDirection: 'row',

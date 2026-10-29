@@ -1,10 +1,11 @@
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Share } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Share, Image } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import * as Linking from 'expo-linking';
 import { useState, useEffect, useRef } from 'react';
 import QRCode from 'react-native-qrcode-svg';
 import type { Svg } from 'react-native-svg';
 import { useTheme } from '../hooks/useTheme';
+import { useSettings } from '../hooks/useSettings';
 import { Icon } from '../components/Icon';
 import { getQr } from '../utils/qrcache';
 import { toggleFavorite, isFavorite, redactSensitive } from '../services/history';
@@ -35,6 +36,7 @@ function labelFor(qrType: QrDetectedType, rawType?: string): string {
 export default function Result() {
   const { colors } = useTheme();
   const [adsEnabled] = useAdsEnabled();
+  const { settings } = useSettings();
   const params = useLocalSearchParams<RouteParams>();
   const { id, content: paramContent, source: paramSource, rawType } = params;
   const [isFav, setIsFav] = useState(false);
@@ -45,6 +47,8 @@ export default function Result() {
   const qrType: QrDetectedType = detectType(content);
   const itemId = entry?.id;
   const displayContent = redactSensitive(content, qrType);
+  const logoUri = settings?.qrGen.logo ?? null;
+  const borderPad = settings?.qrGen.border ?? 0;
 
   useEffect(() => {
     if (itemId) {
@@ -176,14 +180,25 @@ export default function Result() {
         {/* QR preview for all sources — scanned codes can also be re-rendered */}
         <View style={styles.previewSection}>
           <Text style={[styles.previewLabel, { color: colors.textSecondary }]}>QR Preview</Text>
-          <View style={[styles.previewCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <QRCode
-              getRef={(ref: Svg) => {
-                svgRef.current = ref;
-              }}
-              value={content}
-              size={180}
-            />
+          <View style={[styles.previewCard, { backgroundColor: colors.surface, borderColor: colors.border, padding: borderPad > 0 ? borderPad * 4 : 0 }]}>
+            {logoUri ? (
+              <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+                <QRCode
+                  getRef={(ref: Svg) => { svgRef.current = ref; }}
+                  value={content}
+                  size={180}
+                />
+                <Image source={{ uri: logoUri }} style={{ position: 'absolute', width: 54, height: 54, borderRadius: 4 }} />
+              </View>
+            ) : (
+              <QRCode
+                getRef={(ref: Svg) => {
+                  svgRef.current = ref;
+                }}
+                value={content}
+                size={180}
+              />
+            )}
           </View>
           <TouchableOpacity
             style={[styles.actionBtn, { backgroundColor: colors.surfaceSecondary, alignSelf: 'center' }]}

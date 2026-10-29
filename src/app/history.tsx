@@ -1,12 +1,15 @@
-import { View, Text, TouchableOpacity, StyleSheet, FlatList, Alert, TextInput, Share } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, FlatList, Alert, TextInput, Share, ActivityIndicator } from 'react-native';
 import { useCallback, useState } from 'react';
 import { useFocusEffect, router } from 'expo-router';
 import QRCode from 'react-native-qrcode-svg';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../hooks/useTheme';
 import { Icon } from '../components/Icon';
 import { Badge } from '../components/Badge';
 import { EmptyState } from '../components/EmptyState';
-import { getHistory, deleteItem, toggleFavorite, getFavorites, clearHistory, redactSensitive } from '../services/history';
+import { getHistory, deleteItem, toggleFavorite, getFavorites, clearHistory, redactSensitive, batchDelete, importHistory } from '../services/history';
 import { copyToClipboard } from '../services/share';
 import { BannerAdComponent, useAdsEnabled } from '../services/ads';
 import { type QrPayload } from '../models';
@@ -22,6 +25,9 @@ export default function History() {
   const [filter, setFilter] = useState<FilterTab>('all');
   const [search, setSearch] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [batchMode, setBatchMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isExporting, setIsExporting] = useState(false);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -37,6 +43,18 @@ export default function History() {
     }, [load])
   );
 
+  // Exit batch mode when navigating away
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        if (batchMode) {
+          setBatchMode(false);
+          setSelectedIds(new Set());
+        }
+      };
+    }, [batchMode])
+  );
+
   const remove = async (id: string) => {
     await deleteItem(id);
     load();
@@ -47,6 +65,83 @@ export default function History() {
       { text: 'Cancel', style: 'cancel' },
       { text: 'Clear', style: 'destructive', onPress: async () => { await clearHistory(); load(); } },
     ]);
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    setSelectedIds(new Set(items.map((i) => i.id)));
+  };
+
+  const deselectAll = () => {
+    setSelectedIds(new Set());
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedIds.size === 0) return;
+    Alert.alert(
+      `Delete ${selectedIds.size} items?`,
+      'This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: async () => { await batchDelete(Array.from(selectedIds)); setSelectedIds(new Set()); load(); } },
+      ],
+    );
+  };
+
+  const handleBatchShare = async () => {
+    const selectedItems = items.filter((i) => selectedIds.has(i.id));
+    const text = selectedItems.map((i) => i.content).join('\n\n');
+    try {
+      await Share.share({ message: text, title: 'QR History' });
+    } catch {
+      Alert.alert('Error', 'Could not share.');
+    }
+  };
+
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      const list = await getHistory();
+      const json = JSON.stringify(list, null, 2);
+      const fileUri = FileSystem.cacheDirectory + 'qr-toolkit-export.json';
+      await FileSystem.writeAsStringAsync(fileUri, json, { encoding: FileSystem.EncodingType.UTF8 });
+      await Sharing.shareAsync(fileUri, { mimeType: 'application/json', dialogTitle: 'Export History' });
+      Alert.alert('Exported', `${list.length} items saved.`);
+    } catch {
+      Alert.alert('Error', 'Could not export history.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleImport = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: false,
+      quality: 1,
+    });
+    if (result.canceled || !result.assets?.length) return;
+    try {
+      const uri = result.assets[0].uri;
+      const text = await FileSystem.readAsStringAsync(uri);
+      const parsed = JSON.parse(text) as unknown;
+      const { added, skipped } = await importHistory(parsed);
+      await load();
+      Alert.alert(
+        'Import Complete',
+        `Added ${added} items${skipped > 0 ? `, skipped ${skipped} duplicates` : ''}.`,
+      );
+    } catch {
+      Alert.alert('Error', 'Could not import. Make sure the file is a valid JSON export from QR Toolkit.');
+    }
   };
 
   const copyItem = async (item: QrPayload) => {
