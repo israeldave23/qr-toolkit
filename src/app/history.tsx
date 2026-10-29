@@ -2,7 +2,7 @@ import { View, Text, TouchableOpacity, StyleSheet, FlatList, Alert, TextInput, S
 import { useCallback, useState } from 'react';
 import { useFocusEffect, router } from 'expo-router';
 import QRCode from 'react-native-qrcode-svg';
-import * as FileSystem from 'expo-file-system';
+import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../hooks/useTheme';
@@ -111,9 +111,12 @@ export default function History() {
     try {
       const list = await getHistory();
       const json = JSON.stringify(list, null, 2);
-      const fileUri = FileSystem.cacheDirectory + 'qr-toolkit-export.json';
-      await FileSystem.writeAsStringAsync(fileUri, json, { encoding: FileSystem.EncodingType.UTF8 });
-      await Sharing.shareAsync(fileUri, { mimeType: 'application/json', dialogTitle: 'Export History' });
+      const file = new File(Paths.cache, 'qr-toolkit-export.json');
+      const stream = file.writableStream();
+      const writer = stream.getWriter();
+      await writer.write(new TextEncoder().encode(json));
+      await writer.close();
+      await Sharing.shareAsync(file.uri, { mimeType: 'application/json', dialogTitle: 'Export History' });
       Alert.alert('Exported', `${list.length} items saved.`);
     } catch {
       Alert.alert('Error', 'Could not export history.');
@@ -131,7 +134,7 @@ export default function History() {
     if (result.canceled || !result.assets?.length) return;
     try {
       const uri = result.assets[0].uri;
-      const text = await FileSystem.readAsStringAsync(uri);
+      const text = await new File(uri).text();
       const parsed = JSON.parse(text) as unknown;
       const { added, skipped } = await importHistory(parsed);
       await load();

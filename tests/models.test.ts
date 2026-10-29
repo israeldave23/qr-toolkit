@@ -25,7 +25,7 @@ describe('models', () => {
     expect(QRGEN_DEFAULTS.size).toBe(180);
   });
 
-  it('STORAGE_VERSION is 1', () => {
-    expect(STORAGE_VERSION).toBe(1);
+  it('STORAGE_VERSION is 2', () => {
+    expect(STORAGE_VERSION).toBe(2);
   });
 });
